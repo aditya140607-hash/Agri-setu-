@@ -1,0 +1,12 @@
+{
+  "name": "AGRI-SETU – Connecting Farmers to Right Support",
+  "description": "AI-Powered Smart Agriculture Support Platform connecting Indian farmers with government schemes, crop disease assistance, weather alerts, mandi prices, crop insurance, and agricultural experts.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

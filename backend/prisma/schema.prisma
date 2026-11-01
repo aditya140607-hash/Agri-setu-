@@ -1,0 +1,276 @@
+// Prisma Schema for AGRI-SETU Platform
+// Database: PostgreSQL
+// Project: HACKFEST 3.0
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  FARMER
+  ADMIN
+  EXPERT
+}
+
+enum Language {
+  EN
+  HI
+}
+
+enum ExpertRequestStatus {
+  PENDING
+  IN_REVIEW
+  RESOLVED
+}
+
+// 1. Users Model
+model User {
+  id                String          @id @default(uuid())
+  fullName          String
+  mobileNumber      String          @unique
+  email             String?         @unique
+  passwordHash      String
+  role              Role            @default(FARMER)
+  preferredLanguage Language        @default(HI)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  farmerProfile     FarmerProfile?
+  expertProfile     ExpertProfile?
+  crops             Crop[]
+  cropAnalyses      CropAnalysis[]
+  savedSchemes      SavedScheme[]
+  expertRequests    ExpertRequest[]
+  chatMessages      ChatMessage[]
+  notifications     Notification[]
+  feedback          Feedback[]
+
+  @@map("Users")
+  @@index([mobileNumber])
+  @@index([role])
+}
+
+// 2. FarmerProfiles Model
+model FarmerProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  state       String
+  district    String
+  village     String
+  landSize    Float    // In acres
+  soilType    String
+  irrigation  String?  // Canal, Tubewell, Rainfed, Drip
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("FarmerProfiles")
+  @@index([state, district])
+}
+
+// 3. Crops Model
+model Crop {
+  id                   String    @id @default(uuid())
+  farmerId             String
+  cropName             String
+  variety              String?
+  season               String    // Kharif, Rabi, Zaid
+  sowingDate           DateTime
+  expectedHarvestDate  DateTime?
+  areaAcres            Float?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user                 User      @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+
+  @@map("Crops")
+  @@index([farmerId])
+  @@index([cropName])
+}
+
+// 4. CropAnalyses Model
+model CropAnalysis {
+  id                 String   @id @default(uuid())
+  farmerId           String
+  imageUrl           String
+  cropName           String
+  detectedIssue      String
+  confidence         Float    // 0 - 100 percentage
+  symptoms           String[] // Diagnostic symptoms
+  recommendations    String[] // Cultural & preventive measures
+  chemicalControl    String?  // Registered CIBRC recommendations
+  biologicalControl  String?  // Organic / Bio remedies
+  needsExpertReview  Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  user               User     @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+
+  @@map("CropAnalyses")
+  @@index([farmerId])
+  @@index([cropName])
+}
+
+// 5. GovernmentSchemes Model
+model GovernmentScheme {
+  id               String        @id @default(uuid())
+  name             String
+  category         String        // Financial, Insurance, Irrigation, Machinery, Input Subsidy, Organic Farming
+  description      String
+  eligibility      String
+  benefits         String
+  documents        String[]
+  officialUrl      String
+  stateApplicable  String        @default("All India")
+  minLandRequired  Float?        @default(0)
+  maxLandRequired  Float?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  savedByFarmers   SavedScheme[]
+
+  @@map("GovernmentSchemes")
+  @@index([category])
+}
+
+// 6. SavedSchemes Model
+model SavedScheme {
+  id        String           @id @default(uuid())
+  farmerId  String
+  schemeId  String
+  savedAt   DateTime         @default(now())
+
+  user      User             @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  scheme    GovernmentScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+
+  @@unique([farmerId, schemeId])
+  @@map("SavedSchemes")
+  @@index([farmerId])
+}
+
+// 7. WeatherRecords Model
+model WeatherRecord {
+  id          String   @id @default(uuid())
+  location    String
+  district    String
+  temperature Float
+  humidity    Float
+  rainfall    Float
+  windSpeed   Float
+  conditions  String
+  advisory    String?
+  recordedAt  DateTime @default(now())
+
+  @@map("WeatherRecords")
+  @@index([district])
+  @@index([recordedAt])
+}
+
+// 8. MandiPrices Model
+model MandiPrice {
+  id          String   @id @default(uuid())
+  cropName    String
+  state       String
+  district    String
+  mandiName   String
+  minPrice    Float    // INR per Quintal
+  maxPrice    Float
+  modalPrice  Float
+  arrivalQty  Float?   // Tonnes
+  priceDate   DateTime @default(now())
+
+  @@map("MandiPrices")
+  @@index([cropName, state, district])
+  @@index([priceDate])
+}
+
+// 9. ExpertProfiles Model
+model ExpertProfile {
+  id                 String          @id @default(uuid())
+  userId             String          @unique
+  name               String
+  specialization     String
+  kvkName            String
+  location           String
+  experienceYears    Int             @default(5)
+  contactInformation String
+  createdAt          DateTime        @default(now())
+
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestsAssigned   ExpertRequest[]
+
+  @@map("ExpertProfiles")
+  @@index([specialization])
+}
+
+// 10. ExpertRequests Model
+model ExpertRequest {
+  id            String              @id @default(uuid())
+  farmerId      String
+  expertId      String?
+  cropName      String?
+  question      String
+  imageUrl      String?
+  status        ExpertRequestStatus @default(PENDING)
+  expertReply   String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  user          User                @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  expert        ExpertProfile?      @relation(fields: [expertId], references: [id], onDelete: SetNull)
+
+  @@map("ExpertRequests")
+  @@index([farmerId])
+  @@index([expertId])
+}
+
+// 11. ChatMessages Model
+model ChatMessage {
+  id        String   @id @default(uuid())
+  farmerId  String
+  message   String
+  response  String
+  language  Language @default(HI)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+
+  @@map("ChatMessages")
+  @@index([farmerId])
+}
+
+// 12. Notifications Model
+model Notification {
+  id        String   @id @default(uuid())
+  farmerId  String
+  title     String
+  message   String
+  type      String   // WEATHER_ALERT, SCHEME_DEADLINE, MANDI_SURGE, CROP_HEALTH, SYSTEM
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+
+  @@map("Notifications")
+  @@index([farmerId, isRead])
+}
+
+// 13. Feedback Model
+model Feedback {
+  id        String   @id @default(uuid())
+  farmerId  String
+  rating    Int      // 1 to 5
+  message   String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+
+  @@map("Feedback")
+  @@index([farmerId])
+}
